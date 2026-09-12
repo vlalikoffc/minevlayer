@@ -78,6 +78,7 @@ Requires Node.js >= 22.
 | Give the brain a job | `bot.tasks.mine('diamond_ore', { count: 10 })` + `bot.tasks.start()` |
 | Self-defense mode | `bot.tasks.defend()` |
 | Custom task from a file | `bot.tasks.load('./tasks/patrol.js')` |
+| Alive idle + physics status | `bot.human.idle()` / `bot.human.status()` |
 
 Options everywhere: `bot.break('stone', { maxDistance: 32, count: 5, autoTool: true })`.
 
@@ -209,6 +210,32 @@ bot.tasks.load('./tasks/patrol.js') // file exports { name, priority, active?, r
 
 `bot.tasks.current` — what the bot is doing now; `bot.tasks.list()` — the whole
 queue; events: `switch`, `done`, `error`. `bot.tasks.stop()` stops the brain.
+
+## Legitimacy — physics like the real Java client
+
+The bot must be physically indistinguishable from a player in the official
+client. What minevlayer guarantees:
+
+| Concern | Guarantee |
+|---|---|
+| Falling / gravity | vanilla physics engine (prismarine-physics) runs every tick; the bot falls when it should and lands where it should — captcha-style "fall onto the block" checks pass on their own |
+| Knockback | on damage the bot releases all inputs for ~350 ms and rides the knock — no "pushed but still walking forward" flags |
+| Air stuck | watchdog: if the bot hangs airborne impossibly long, `physics_anomaly` is emitted so you see the problem |
+| Teleports / impossible speed | never — coordinates are only produced by the physics engine |
+| Reach, cooldowns, crits | strictly vanilla rules (see PvP) |
+| Rotation | smoothed into several packets, aim before action |
+| Standing still | `bot.human.idle()` gives a live idle: head drift, looking around, crouches, jumps — not a statue with a frozen camera |
+
+```js
+bot.human.idle() // alive idle on
+bot.human.status() // { physicsEnabled, onGround, airborneMs, sinceKnockbackMs, idleActive }
+bot.on('physics_anomaly', (e) => console.log('physics issue:', e))
+```
+
+Honest limits: this layer makes the bot *play by the rules*, it does not bypass
+detection. Some server setups fingerprint clients beyond physics (telemetry,
+custom handshake plugins) — that's outside any protocol wrapper. The primary
+target is offline play and your own servers.
 
 How the smarts work:
 

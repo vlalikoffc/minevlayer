@@ -28,6 +28,7 @@ import { injectSimple } from './simple'
 import { injectLife } from './life'
 import { injectActions } from './actions'
 import { injectPvp } from './pvp'
+import { injectHuman } from './human'
 import { wireKnockback } from './physics'
 import { TaskManager } from './tasks'
 import { Brain } from './brain'
@@ -60,6 +61,9 @@ export function createBot(options: Partial<BotOptions> & { autoPathfinder?: bool
 
   // ванильное «человеческое» PvP
   injectPvp(bot)
+
+  // «человечность»: живой простой, вотчдозор физики, статус
+  injectHuman(bot)
 
   // мозг: состояние и обстановка в реальном времени
   bot.brain = new Brain(bot)

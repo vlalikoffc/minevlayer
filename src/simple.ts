@@ -273,6 +273,7 @@ export function injectSimple(bot: MinevlayerBot) {
       clearInterval(anyBot._antiAfk)
       anyBot._antiAfk = null
     }
+    try { anyBot.human?.stopIdle() } catch {}
     if (anyBot._fight) {
       anyBot._fight.active = false
     }

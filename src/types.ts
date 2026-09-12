@@ -65,6 +65,18 @@ export type MinevlayerBot = Omit<import('mineflayer').Bot, 'toss' | 'dig'> & {
   jump(): void
   /** Анти-АФК: прыжки/приседания/повороты с интервалом. Останавливается через stop(). */
   antiAfk(intervalMs?: number): void
+  /** «Человечность»: живой простой, вотчдозор физики, статус. */
+  human: {
+    idle(options?: { minMs?: number, maxMs?: number }): void
+    stopIdle(): void
+    status(): {
+      physicsEnabled: boolean
+      onGround: boolean
+      airborneMs: number
+      sinceKnockbackMs: number
+      idleActive: boolean
+    }
+  }
 
   // === ванильное «человеческое» PvP ===
   /** Бой с целью: мувфикс, плавный прицел, кулдаун, криты, дальность <= 3 блоков. */

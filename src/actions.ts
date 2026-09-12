@@ -113,10 +113,18 @@ export function injectActions(bot: any) {
   }
 
   /**
-   * Анти-АФК: периодически прыгаем/приседаем/вертим головой, чтобы сервер не кикнул.
+   * Анти-АФК: чтобы сервер не кикнул. Если подключён модуль «человечности»,
+   * используется живой простой (дрейф головы, приседы, прыжки), иначе — базовый цикл.
    * Останавливается через bot.stop().
    */
   bot.antiAfk = (intervalMs = 30_000): void => {
+    if (bot.human?.idle) {
+      bot.human.idle({
+        minMs: Math.max(1500, Math.floor(intervalMs / 6)),
+        maxMs: intervalMs
+      })
+      return
+    }
     if (bot._antiAfk) clearInterval(bot._antiAfk)
     bot._antiAfk = setInterval(() => {
       if (!bot.entity) return
