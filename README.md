@@ -1,6 +1,7 @@
 # minevlayer
 
 **Minecraft bots: 1 action = 1 line.** A smart TypeScript layer on top of [Mineflayer](https://github.com/PrismarineJS/mineflayer).
+Survival, SMP, anarchy, bedwars, any minigame — the same simple API, because every mode needs the same things: move, fight, use items, talk, interact.
 
 ```js
 const { createBot } = require('minevlayer')
@@ -70,6 +71,9 @@ Requires Node.js >= 22.
 | What should I do to survive | `bot.brain.todo()` |
 | Eat / heal / sleep | `bot.feed()` / `bot.heal()` / `bot.sleepNow()` |
 | Craft with full chain | `await bot.craftChain('iron_pickaxe')` |
+| Use doors/levers/chests | `await bot.use('chest')` |
+| Attack / pickup / give | `bot.attackNearest('zombie')` / `bot.pickup()` / `bot.give('Steve', 'diamond', 2)` |
+| Don't get AFK-kicked | `bot.antiAfk()` |
 
 Options everywhere: `bot.break('stone', { maxDistance: 32, count: 5, autoTool: true })`.
 
@@ -119,6 +123,25 @@ bot.on('spawn', async () => {
 
 `craftChain` walks to a crafting table when the recipe needs one, and tells you
 exactly which ingredient it can't get if the chain is impossible.
+
+## Any game mode
+
+The primitives above are mode-agnostic. On top of them, common scenarios in any mode:
+
+```js
+bot.on('spawn', async () => {
+  await bot.use('chest') // doors, levers, buttons, chests, tables — walk + activate
+  await bot.attackNearest('zombie') // or 'player', 'Steve', or a predicate
+  await bot.pickup() // walk to the nearest drop so it gets collected
+  await bot.give('Steve', 'diamond', 2) // walk up and toss items to the player
+  bot.antiAfk() // random jumps/sneaks/looks — no AFK kick (anarchy servers)
+  console.log(bot.brain.droppedItems()) // loot radar: everything dropped nearby
+})
+```
+
+Game-specific knowledge (bedwars islands and shops, kits, arena logic) is not
+hardcoded in the core — it belongs in mode modules built on these primitives,
+while the full Mineflayer API stays on the bot for anything exotic.
 
 How the smarts work:
 

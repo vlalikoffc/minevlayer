@@ -176,6 +176,25 @@ export class Brain {
     return this.threats(radius).length === 0
   }
 
+  /** Валяющиеся предметы (дроп) в радиусе, от ближайших. */
+  droppedItems(radius = 16): Array<{ id: number, position: Vec3, distance: number }> {
+    const bot = this.bot
+    if (!bot.entity?.position || !bot.entities) return []
+    const out: Array<{ id: number, position: Vec3, distance: number }> = []
+    for (const e of Object.values<any>(bot.entities)) {
+      if (!e || !e.position || e === bot.entity) continue
+      if (e.name !== 'item' && e.objectType !== 'Item') continue
+      const distance = bot.entity.position.distanceTo(e.position)
+      if (distance <= radius) out.push({ id: e.id, position: e.position, distance })
+    }
+    return out.sort((a, b) => a.distance - b.distance)
+  }
+
+  /** Ближайший дроп, или null. */
+  nearestDrop(radius = 16): { id: number, position: Vec3, distance: number } | null {
+    return this.droppedItems(radius)[0] ?? null
+  }
+
   // ==================== приспособленность к жизни ====================
 
   /** Ночь ли сейчас (спать можно, мобы спавнятся). */

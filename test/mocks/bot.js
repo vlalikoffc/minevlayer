@@ -88,6 +88,7 @@ function createMockBot (opts = {}) {
 
   // движение
   bot.lookAt = async (pos) => { calls.lookAt.push(pos) }
+  bot.look = async (pitch, yaw) => { calls.look = calls.look || []; calls.look.push([pitch, yaw]) }
   bot.setControlState = (k, v) => { calls.setControlState.push([k, v]) }
   bot.clearControlStates = () => { calls.clearControlStates++ }
 

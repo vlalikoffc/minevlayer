@@ -209,6 +209,20 @@ describe('brain', () => {
       assert.deepStrictEqual(brain.todo(), ['eat', 'heal', 'fight_or_flee', 'sleep', 'replace_tool'])
     })
 
+    it('droppedItems() / nearestDrop() see item entities', () => {
+      const bot = createMockBot({ position: [0, 64, 0] })
+      bot.entities = {
+        2: { id: 2, name: 'item', position: new Vec3(5, 64, 0) },
+        3: { id: 3, name: 'item', position: new Vec3(2, 64, 0) },
+        4: { id: 4, name: 'zombie', type: 'mob', position: new Vec3(1, 64, 0) } // не дроп
+      }
+      const brain = new Brain(bot)
+      const drops = brain.droppedItems()
+      assert.deepStrictEqual(drops.map(d => d.id), [3, 2]) // от ближайшего
+      assert.strictEqual(brain.nearestDrop().id, 3)
+      assert.strictEqual(brain.nearestDrop(1), null)
+    })
+
     it('todo() is empty when life is good', () => {
       const bot = createMockBot({ position: [0, 64, 0], timeOfDay: 6000 })
       assert.deepStrictEqual(new Brain(bot).todo(), [])

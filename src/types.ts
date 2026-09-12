@@ -49,6 +49,20 @@ export type MinevlayerBot = Omit<import('mineflayer').Bot, 'toss' | 'dig'> & {
   /** Найти ближайшую кровать, дойти и лечь спать. */
   sleepNow(): Promise<void>
 
+  // === универсальные действия: любой режим — выживание, SMP, анархия, миниигры ===
+  /** Использовать ближайший блок по имени: рычаг, дверь, сундук, верстак. Сам дойдёт и активирует. */
+  use(target: string | Block): Promise<any>
+  /** Атаковать ближайшую цель: имя ('zombie', 'player', 'Steve') или предикат. Вернёт цель или null. */
+  attackNearest(match: string | ((e: Entity) => boolean), radius?: number): Promise<Entity | null>
+  /** Дойти до ближайшего дропа, чтобы подобрать его. Вернёт сущность дропа или null. */
+  pickup(radius?: number): Promise<Entity | null>
+  /** Передать предметы игроку: подойти и выбросить ему под ноги. */
+  give(playerName: string, itemName: string, count?: number): Promise<void>
+  /** Разовый прыжок. */
+  jump(): void
+  /** Анти-АФК: прыжки/приседания/повороты с интервалом. Останавливается через stop(). */
+  antiAfk(intervalMs?: number): void
+
   /** Чат-триггер: вызвать callback, когда кто-то напишет сообщение с триггером. */
   onChat(trigger: string | RegExp, callback: (username: string, message: string) => void): void
   /** Подождать N серверных тиков. */

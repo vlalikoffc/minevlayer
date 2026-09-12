@@ -26,6 +26,7 @@ const mineflayer = require('mineflayer')
 
 import { injectSimple } from './simple'
 import { injectLife } from './life'
+import { injectActions } from './actions'
 import { Brain } from './brain'
 export { Brain, HOSTILE_MOBS } from './brain'
 export type { BrainState, EntityInfo, BrainEvents } from './brain'
@@ -48,6 +49,9 @@ export function createBot(options: Partial<BotOptions> & { autoPathfinder?: bool
 
   // жизнь: еда, сон, цепочки крафта
   injectLife(bot)
+
+  // универсальные действия: бой, предметы, мир, анти-АФК
+  injectActions(bot)
 
   // мозг: состояние и обстановка в реальном времени
   bot.brain = new Brain(bot)

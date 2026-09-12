@@ -267,6 +267,10 @@ export function injectSimple(bot: MinevlayerBot) {
       clearInterval(anyBot._followInterval)
       anyBot._followInterval = null
     }
+    if (anyBot._antiAfk) {
+      clearInterval(anyBot._antiAfk)
+      anyBot._antiAfk = null
+    }
     if (anyBot._guardHandler) {
       bot.removeListener('physicsTick', anyBot._guardHandler)
       anyBot._guardHandler = null
