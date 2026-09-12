@@ -67,6 +67,9 @@ Requires Node.js >= 22.
 | Full state snapshot | `bot.brain.state()` |
 | Who's around | `bot.brain.nearby(16)` / `bot.brain.threats()` |
 | Live status line | `bot.brain.reportEvery(1000)` |
+| What should I do to survive | `bot.brain.todo()` |
+| Eat / heal / sleep | `bot.feed()` / `bot.heal()` / `bot.sleepNow()` |
+| Craft with full chain | `await bot.craftChain('iron_pickaxe')` |
 
 Options everywhere: `bot.break('stone', { maxDistance: 32, count: 5, autoTool: true })`.
 
@@ -92,6 +95,28 @@ bot.brain.on('playerJoined', (name) => bot.chat(`Hi ${name}!`))
 ```
 
 Events: `health`, `danger_hp`, `hungry`, `threat`, `entity`, `playerJoined`, `playerLeft`, `death`.
+
+Survival awareness — the brain knows what a living bot should want:
+
+```js
+bot.brain.isNight() // time to sleep / hide
+bot.brain.tools() // durability report: [{ name: 'iron_pickaxe', durability: 0.04 }, ...]
+bot.brain.todo() // ['eat', 'heal', 'fight_or_flee', 'sleep', 'replace_tool'] — empty when life is good
+```
+
+## Life — basic needs in one line
+
+The bot is adapted for survival, not just mining:
+
+```js
+await bot.feed() // eat the simplest food from inventory (refuses with a tip if there's none)
+await bot.heal() // eat until hunger is full so health regenerates
+await bot.sleepNow() // find the nearest bed, walk to it, sleep (clear error if impossible)
+await bot.craftChain('iron_pickaxe') // auto-crafts missing ingredients first: planks <- logs, sticks <- planks...
+```
+
+`craftChain` walks to a crafting table when the recipe needs one, and tells you
+exactly which ingredient it can't get if the chain is impossible.
 
 How the smarts work:
 

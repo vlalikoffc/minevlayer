@@ -171,6 +171,50 @@ describe('brain', () => {
     })
   })
 
+  describe('survival awareness', () => {
+    it('isNight() knows the day cycle', () => {
+      assert.strictEqual(new Brain(createMockBot({ timeOfDay: 13000 })).isNight(), true)
+      assert.strictEqual(new Brain(createMockBot({ timeOfDay: 6000 })).isNight(), false)
+    })
+
+    it('tools() reports durability, worst first', () => {
+      const bot = createMockBot({
+        inventory: [
+          { type: 257, name: 'iron_pickaxe', maxDurability: 250, durabilityUsed: 240 }, // 4% жив
+          { type: 267, name: 'iron_sword', maxDurability: 250, durabilityUsed: 0 }, // целый
+          { type: 297, name: 'bread' } // не инструмент — игнор
+        ]
+      })
+      const brain = new Brain(bot)
+      const tools = brain.tools()
+      assert.deepStrictEqual(tools, [
+        { name: 'iron_pickaxe', durability: 0.04 },
+        { name: 'iron_sword', durability: 1 }
+      ])
+      assert.strictEqual(brain.worstTool().name, 'iron_pickaxe')
+    })
+
+    it('todo() builds a prioritized survival checklist', () => {
+      const bot = createMockBot({
+        position: [0, 64, 0],
+        health: 5,
+        food: 5,
+        timeOfDay: 13000,
+        entities: { 9: entity(9, 'zombie', 'mob', [3, 64, 0]) },
+        inventory: [
+          { type: 257, name: 'iron_pickaxe', maxDurability: 250, durabilityUsed: 245 }
+        ]
+      })
+      const brain = new Brain(bot)
+      assert.deepStrictEqual(brain.todo(), ['eat', 'heal', 'fight_or_flee', 'sleep', 'replace_tool'])
+    })
+
+    it('todo() is empty when life is good', () => {
+      const bot = createMockBot({ position: [0, 64, 0], timeOfDay: 6000 })
+      assert.deepStrictEqual(new Brain(bot).todo(), [])
+    })
+  })
+
   describe('reportEvery()', () => {
     it('logs state on an interval until stopped', async () => {
       const bot = createMockBot({ health: 9 })

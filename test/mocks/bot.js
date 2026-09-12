@@ -70,6 +70,15 @@ function createMockBot (opts = {}) {
     return out
   }
 
+  // жизнь: еда и сон
+  bot.consume = opts.consume || (async () => {
+    calls.consume = calls.consume || []
+    calls.consume.push(true)
+    bot.food = Math.min(20, (bot.food ?? 0) + 5)
+  })
+  bot.isABed = opts.isABed || ((b) => String(b?.name ?? '').includes('bed'))
+  bot.sleep = opts.sleep || (async (bed) => { calls.sleep = calls.sleep || []; calls.sleep.push(bed) })
+
   // мир
   bot._findBlocksImpl = opts.findBlocks || (() => [])
   bot.findBlocks = (o) => bot._findBlocksImpl(o)

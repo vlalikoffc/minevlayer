@@ -176,6 +176,52 @@ export class Brain {
     return this.threats(radius).length === 0
   }
 
+  // ==================== приспособленность к жизни ====================
+
+  /** Ночь ли сейчас (спать можно, мобы спавнятся). */
+  isNight(): boolean {
+    const t = this.bot.time?.timeOfDay ?? 0
+    return t >= 12500 && t <= 23500
+  }
+
+  /** Инструменты/броня в инвентаре с прочностью (0..1), от самых убитых к целым. */
+  tools(): Array<{ name: string, durability: number }> {
+    const items = this.bot.inventory?.items ? this.bot.inventory.items() : []
+    const out: Array<{ name: string, durability: number }> = []
+    for (const i of items) {
+      const max = i?.maxDurability
+      if (typeof max === 'number' && max > 0) {
+        const used = i.durabilityUsed ?? 0
+        out.push({
+          name: i.name ?? `#${i.type}`,
+          durability: Math.max(0, Math.round((1 - used / max) * 100) / 100)
+        })
+      }
+    }
+    return out.sort((a, b) => a.durability - b.durability)
+  }
+
+  /** Самый убитый инструмент, или null если носимых предметов нет. */
+  worstTool(): { name: string, durability: number } | null {
+    return this.tools()[0] ?? null
+  }
+
+  /**
+   * Что боту пора делать, чтобы выжить — приоритизированный список подсказок:
+   * 'eat', 'heal', 'fight_or_flee', 'sleep', 'replace_tool'. Пустой массив = всё хорошо.
+   */
+  todo(): string[] {
+    const s = this.state()
+    const out: string[] = []
+    if (s.food <= 6) out.push('eat')
+    if (s.hp <= 6) out.push('heal')
+    if (s.threatsNearby > 0) out.push('fight_or_flee')
+    if (this.isNight()) out.push('sleep')
+    const worst = this.worstTool()
+    if (worst && worst.durability <= 0.1) out.push('replace_tool')
+    return out
+  }
+
   // ==================== события ====================
 
   on <K extends keyof BrainEvents>(event: K, cb: (payload: BrainEvents[K]) => void): void {

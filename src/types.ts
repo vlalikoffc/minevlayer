@@ -38,6 +38,16 @@ export type MinevlayerBot = Omit<import('mineflayer').Bot, 'toss' | 'dig'> & {
 
   /** Скрафтить по первому доступному рецепту. */
   craftSimple(itemName: string, count?: number, craftingTable?: Block | boolean): Promise<void>
+  /** Скрафтить с авто-цепочкой: недостающие ингредиенты скрафтятся сами (доски <- брёвна и т.д.). */
+  craftChain(itemName: string, count?: number, options?: { table?: Block | 'auto' | false }): Promise<void>
+
+  // === жизнь: базовые потребности одной строкой ===
+  /** Поесть: найти лучшую еду в инвентаре и съесть. Вернёт имя съеденного или null если сыт. */
+  feed(): Promise<string | null>
+  /** Наесться до полного голода, чтобы здоровье восстанавливалось само. */
+  heal(): Promise<void>
+  /** Найти ближайшую кровать, дойти и лечь спать. */
+  sleepNow(): Promise<void>
 
   /** Чат-триггер: вызвать callback, когда кто-то напишет сообщение с триггером. */
   onChat(trigger: string | RegExp, callback: (username: string, message: string) => void): void
