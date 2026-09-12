@@ -63,6 +63,10 @@ export type MinevlayerBot = Omit<import('mineflayer').Bot, 'toss' | 'dig'> & {
   /** Анти-АФК: прыжки/приседания/повороты с интервалом. Останавливается через stop(). */
   antiAfk(intervalMs?: number): void
 
+  // === ванильное «человеческое» PvP ===
+  /** Бой с целью: мувфикс, плавный прицел, кулдаун, криты, дальность <= 3 блоков. */
+  fight(target: string | Entity, options?: FightOptions): Promise<void>
+
   /** Чат-триггер: вызвать callback, когда кто-то напишет сообщение с триггером. */
   onChat(trigger: string | RegExp, callback: (username: string, message: string) => void): void
   /** Подождать N серверных тиков. */
@@ -120,4 +124,15 @@ export interface PlaceOptions {
   face?: Vec3
   /** Самому взять блок из инвентаря в руку. @default true */
   autoEquip?: boolean
+}
+
+export interface FightOptions {
+  /** Дистанция, на которой стоять в бою. @default 2.8 */
+  range?: number
+  /** Жёсткий лимит дальности удара (ванила — 3 блока). @default 3.0 */
+  maxReach?: number
+  /** Пауза между ударами, мс. @default 600 */
+  attackMs?: number
+  /** Прыжковые криты по ванильным правилам. @default true */
+  crits?: boolean
 }

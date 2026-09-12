@@ -1,6 +1,6 @@
 {
   "name": "minevlayer",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Smart TypeScript layer over Mineflayer: 1 action = 1 line. Mineflayer stays untouched, vendored in vendor/mineflayer.",
   "keywords": ["minecraft", "mineflayer", "bot", "minecraft-bot", "wrapper", "typescript", "one-liner"],
   "author": "vlalikoffc <225565472+vlalikoffc@users.noreply.github.com>",

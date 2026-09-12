@@ -74,6 +74,7 @@ Requires Node.js >= 22.
 | Use doors/levers/chests | `await bot.use('chest')` |
 | Attack / pickup / give | `bot.attackNearest('zombie')` / `bot.pickup()` / `bot.give('Steve', 'diamond', 2)` |
 | Don't get AFK-kicked | `bot.antiAfk()` |
+| Proper PvP (crits, cooldown, reach) | `await bot.fight('Steve')` |
 
 Options everywhere: `bot.break('stone', { maxDistance: 32, count: 5, autoTool: true })`.
 
@@ -142,6 +143,27 @@ bot.on('spawn', async () => {
 Game-specific knowledge (bedwars islands and shops, kits, arena logic) is not
 hardcoded in the core — it belongs in mode modules built on these primitives,
 while the full Mineflayer API stays on the bot for anything exotic.
+
+## PvP and movement — like a real player
+
+The bot plays by vanilla rules, so its behavior looks human instead of cheaty:
+
+```js
+bot.on('spawn', async () => {
+  await bot.fight('Steve') // proper fight until bot.stop()
+})
+```
+
+What `fight()` actually does (and why each item matters):
+
+- **Vanilla reach only** — never attacks beyond 3 blocks (default combat distance is 2.8), so no "hit from far away" flags.
+- **Movement fix** — the bot stands still while aiming and attacking; no moving-and-snapping at the same time.
+- **Aims first, then hits** — rotation is smoothed over a few packets instead of one instant snap.
+- **Full attack cooldown** (~600 ms + human jitter) between swings — no packet spam.
+- **Real jump crits** — sprint off, jump, hit on the way down, exactly like the vanilla crit rules.
+- **Sprint only while repositioning**, natural pathing with no teleports or impossible speeds — movement comes from the vanilla physics engine.
+
+Options: `bot.fight('zombie', { crits: true, range: 2.8, attackMs: 600 })`. Stop with `bot.stop()`.
 
 How the smarts work:
 
