@@ -2,12 +2,15 @@ import type { Vec3 } from 'vec3'
 import type { Block } from 'prismarine-block'
 import type { Entity } from 'prismarine-entity'
 import type { Brain } from './brain'
+import type { TaskManager } from './tasks'
 
 /** toss и dig переопределяем (умные версии), поэтому убираем их из типа */
 export type MinevlayerBot = Omit<import('mineflayer').Bot, 'toss' | 'dig'> & {
   // === Мозг: состояние и обстановка в реальном времени ===
   /** Состояние бота и мир вокруг: `bot.brain.state()`, `bot.brain.threats()`, `bot.brain.describe()`. */
   brain: Brain
+  /** Диспетчер задач: приоритеты, стандартные задачи (защита/добыча/атака/сбор) и кастомные. */
+  tasks: TaskManager
 
   // === 1 действие = 1 строка ===
   /** Сломать ближайший блок по имени ("oak_log", "stone"). Сам найдёт, дойдёт, выберет инструмент и сломает. */

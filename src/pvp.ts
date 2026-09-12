@@ -101,6 +101,14 @@ export function injectPvp(bot: any) {
 
     try {
       while (state.active && entity.isValid !== false && bot.entity) {
+        // если нас откинули — переживаем откат как живой игрок, не нажимая ничего
+        const kbLeft = (bot._kbUntil ?? 0) - Date.now()
+        if (kbLeft > 0) {
+          bot.clearControlStates()
+          await sleepMs(kbLeft)
+          continue
+        }
+
         const dist = bot.entity.position.distanceTo(entity.position)
 
         // 1) цель вне дистанции удара — подходим (как игрок: бегом если далеко)

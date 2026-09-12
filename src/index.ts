@@ -28,7 +28,11 @@ import { injectSimple } from './simple'
 import { injectLife } from './life'
 import { injectActions } from './actions'
 import { injectPvp } from './pvp'
+import { wireKnockback } from './physics'
+import { TaskManager } from './tasks'
 import { Brain } from './brain'
+export { TaskManager } from './tasks'
+export type { TaskDef } from './tasks'
 export { Brain, HOSTILE_MOBS } from './brain'
 export type { BrainState, EntityInfo, BrainEvents } from './brain'
 
@@ -59,6 +63,13 @@ export function createBot(options: Partial<BotOptions> & { autoPathfinder?: bool
 
   // мозг: состояние и обстановка в реальном времени
   bot.brain = new Brain(bot)
+
+  // диспетчер задач: мозг решает, что делать сейчас (приоритеты)
+  bot.tasks = new TaskManager(bot)
+
+  // физика: получив откидывание, бот не сопротивляется ему 350 мс —
+  // так делает живой игрок, а античитам не за что кикать
+  wireKnockback(bot)
 
   // подхватываем опциональные плагины, если они установлены (безопасный no-op, если нет)
   bot.once('inject_allowed', () => {

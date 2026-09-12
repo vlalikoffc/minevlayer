@@ -75,6 +75,9 @@ Requires Node.js >= 22.
 | Attack / pickup / give | `bot.attackNearest('zombie')` / `bot.pickup()` / `bot.give('Steve', 'diamond', 2)` |
 | Don't get AFK-kicked | `bot.antiAfk()` |
 | Proper PvP (crits, cooldown, reach) | `await bot.fight('Steve')` |
+| Give the brain a job | `bot.tasks.mine('diamond_ore', { count: 10 })` + `bot.tasks.start()` |
+| Self-defense mode | `bot.tasks.defend()` |
+| Custom task from a file | `bot.tasks.load('./tasks/patrol.js')` |
 
 Options everywhere: `bot.break('stone', { maxDistance: 32, count: 5, autoTool: true })`.
 
@@ -164,6 +167,48 @@ What `fight()` actually does (and why each item matters):
 - **Sprint only while repositioning**, natural pathing with no teleports or impossible speeds — movement comes from the vanilla physics engine.
 
 Options: `bot.fight('zombie', { crits: true, range: 2.8, attackMs: 600 })`. Stop with `bot.stop()`.
+
+## Physics — the bot obeys the game
+
+Classic mineflayer bots get kicked because they ignore physics: knocked back but
+still pushing "forward", standing in mid-air, impossible packets. minevlayer
+plays it straight:
+
+- got hit/knockback → the bot releases all controls for ~350 ms and lets the physics engine play the knock out, exactly like a human would;
+- combat and walking pause their inputs during that window;
+- no teleports, no impossible speeds — only vanilla physics and vanilla reach.
+
+## Tasks — the brain decides what to do now
+
+`bot.tasks` is a priority dispatcher: every ~500 ms the brain picks the most
+authoritative **active** task and does one step of it. A high-priority task
+(defense) interrupts a low one (mining) automatically — you just declare tasks.
+
+```js
+bot.on('spawn', () => {
+  bot.tasks.defend() // standard: retreat+heal at low hp, fight threats otherwise (priority 90)
+  bot.tasks.mine('diamond_ore', { count: 10 }) // standard: mine with conditions (priority 50)
+  bot.tasks.attack('Steve') // standard: attack a target while it exists (priority 80)
+  bot.tasks.gather() // standard: pick up drops around (priority 40)
+  bot.tasks.start()
+})
+```
+
+Custom tasks — inline or from a file:
+
+```js
+bot.tasks.custom({
+  name: 'night_watch',
+  priority: 70,
+  active: (bot) => bot.brain.isNight(),
+  run: async (bot) => { /* one step */ }
+})
+
+bot.tasks.load('./tasks/patrol.js') // file exports { name, priority, active?, run }
+```
+
+`bot.tasks.current` — what the bot is doing now; `bot.tasks.list()` — the whole
+queue; events: `switch`, `done`, `error`. `bot.tasks.stop()` stops the brain.
 
 How the smarts work:
 
