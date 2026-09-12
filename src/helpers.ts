@@ -40,14 +40,17 @@ export function getItemId(bot: any, name: string): number | null {
  * Найти лучший инструмент в инвентаре для данного блока.
  * Возвращает индекс слота или null. Смотрит только основной инвентарь и хотбар
  * (слоты 9..44), чтобы не хватать броню/крафт/оффхенд.
+ * Если передан allowedIds — рассматривает только предметы из списка
+ * (например, только кирки, которые реально добывают этот блок).
  */
-export function findBestTool(bot: any, block: Block): number | null {
+export function findBestTool(bot: any, block: Block, allowedIds?: number[] | null): number | null {
   let bestSlot: number | null = null
   let bestSpeed = -1
   const slots: any[] = bot.inventory.slots
   for (let i = 9; i < Math.min(slots.length, 45); i++) {
     const item = slots[i]
     if (!item) continue
+    if (allowedIds && !allowedIds.includes(item.type)) continue
     let time: number
     try {
       time = block.digTime(item.type, false, false, false, item.enchants || [], [])
@@ -62,6 +65,37 @@ export function findBestTool(bot: any, block: Block): number | null {
     }
   }
   return bestSlot
+}
+
+/**
+ * Какие инструменты добывают этот блок (дают дроп).
+ * Данные берутся из данных игры (minecraft-data), поэтому честно для любой версии:
+ * например, золотая кирка быстрая, но алмазную руду ей добыть нельзя.
+ * Возвращает null, если инструмент не нужен вовсе (земля, доски...).
+ */
+export function getHarvestTools(bot: any, blockName: string): { ids: number[], names: string[] } | null {
+  const normalized = String(blockName).toLowerCase()
+  let blockData: any = null
+  try {
+    blockData = bot.registry?.blocksByName?.[normalized]
+  } catch {}
+  if (!blockData) {
+    try {
+      blockData = require('minecraft-data')(bot.version).blocksByName[normalized]
+    } catch {}
+  }
+  if (!blockData || !blockData.harvestTools) return null
+
+  const ids = Object.keys(blockData.harvestTools).map(Number)
+  const names = ids.map(id => {
+    let name: string | undefined
+    try { name = bot.registry?.itemsById?.[id]?.name } catch {}
+    if (!name) {
+      try { name = require('minecraft-data')(bot.version).itemsById[id]?.name } catch {}
+    }
+    return name ?? `#${id}`
+  })
+  return { ids, names }
 }
 
 /**

@@ -3,8 +3,8 @@ import type { Block } from 'prismarine-block'
 import type { Entity } from 'prismarine-entity'
 import type { Brain } from './brain'
 
-/** Бот, у которого не нужен стандартный toss (переопределяем его) */
-export type MinevlayerBot = import('mineflayer').Bot & {
+/** toss и dig переопределяем (умные версии), поэтому убираем их из типа */
+export type MinevlayerBot = Omit<import('mineflayer').Bot, 'toss' | 'dig'> & {
   // === Мозг: состояние и обстановка в реальном времени ===
   /** Состояние бота и мир вокруг: `bot.brain.state()`, `bot.brain.threats()`, `bot.brain.describe()`. */
   brain: Brain
@@ -12,6 +12,9 @@ export type MinevlayerBot = import('mineflayer').Bot & {
   // === 1 действие = 1 строка ===
   /** Сломать ближайший блок по имени ("oak_log", "stone"). Сам найдёт, дойдёт, выберет инструмент и сломает. */
   break(blockName: string, options?: BreakOptions): Promise<void>
+  /** Копать по имени блока: 1 строка вместо 50 в майнфлеере. Если передать Block — работает как оригинальный dig. */
+  dig(blockName: string): Promise<void>
+  dig(block: Block, force?: boolean): Promise<void>
   /** Накопать N блоков (то же, что break с count). */
   mine(blockName: string, count?: number, options?: BreakOptions): Promise<void>
   /** Собрать ресурс: сломать и подобрать дроп (через collectblock, если установлен). */
@@ -66,6 +69,8 @@ export interface BreakOptions {
   autoTool?: boolean
   /** Таймаут на подход к блоку, мс. */
   timeoutMs?: number
+  /** Копать даже без подходящего инструмента (блок сломается, но ДРОПА НЕ БУДЕТ). @default false */
+  force?: boolean
 }
 
 export interface CollectOptions extends BreakOptions {}

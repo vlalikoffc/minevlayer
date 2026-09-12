@@ -1,6 +1,6 @@
 import { Vec3 } from 'vec3'
 import type { MinevlayerBot, BreakOptions, GotoOptions, FollowOptions, PlaceOptions, CollectOptions } from './types'
-import { getBlockId, getItemId, findBestTool, toVec3, isEntity, findBlocksForName, sleepMs, withTimeout } from './helpers'
+import { getBlockId, getItemId, findBestTool, getHarvestTools, toVec3, isEntity, findBlocksForName, sleepMs, withTimeout } from './helpers'
 import type { Block } from 'prismarine-block'
 import type { Entity } from 'prismarine-entity'
 
@@ -42,7 +42,10 @@ export function injectSimple(bot: MinevlayerBot) {
     }
 
     if (block) {
-      const bestSlot = findBestTool(bot, block)
+      // если блок требует конкретный инструмент (кирка для руды) — ищем среди подходящих
+      const harvest = getHarvestTools(bot, block.name)
+      const bestSlot = findBestTool(bot, block, harvest?.ids ?? null)
+        ?? (harvest ? null : findBestTool(bot, block))
       if (bestSlot !== null) {
         const item = bot.inventory.slots[bestSlot]
         if (item) {
@@ -175,8 +178,8 @@ export function injectSimple(bot: MinevlayerBot) {
         }
       }, 100)
 
+      let diggingWall = false
       const jumpTimer = setInterval(() => {
-        // прыгаем, если впереди блок, а над ним свободно
         const yaw = bot.entity.yaw ?? 0
         const front = bot.entity.position.offset(
           Math.cos((yaw + Math.PI) * -1) * 0.5,
@@ -185,9 +188,19 @@ export function injectSimple(bot: MinevlayerBot) {
         )
         const blockAhead = bot.blockAt(front)
         const blockAbove = bot.blockAt(front.offset(0, 1, 0))
-        if (blockAhead && blockAhead.boundingBox === 'block' && (!blockAbove || blockAbove.boundingBox !== 'block')) {
-          bot.setControlState('jump', true)
-          setTimeout(() => bot.setControlState('jump', false), 300)
+        if (blockAhead && blockAhead.boundingBox === 'block') {
+          if (!blockAbove || blockAbove.boundingBox !== 'block') {
+            // ступенька в 1 блок — прыгаем
+            bot.setControlState('jump', true)
+            setTimeout(() => bot.setControlState('jump', false), 300)
+          } else if (!diggingWall && !bot.targetDigBlock && blockAhead.diggable !== false) {
+            // стена в 2 блока — ломаем нижний блок и идём дальше
+            // (с установленным mineflayer-pathfinder препятствия обходятся и так — умнее)
+            diggingWall = true
+            bot.dig(blockAhead)
+              .catch(() => {})
+              .finally(() => { diggingWall = false })
+          }
         }
       }, 400)
     })
@@ -267,6 +280,24 @@ export function injectSimple(bot: MinevlayerBot) {
     const maxDistance = options.maxDistance ?? 64
     const autoTool = options.autoTool ?? true
 
+    // Проверяем инструмент ДО того, как куда-то идти.
+    // Если блок даёт дроп только конкретной киркой (алмазная руда — железная+),
+    // а такой в инвентаре нет — отказываемся сразу и объясняем чем именно.
+    const harvest = getHarvestTools(bot, blockName)
+    if (harvest && !options.force) {
+      const suitable = bot.inventory.items().filter(i => harvest.ids.includes(i.type))
+      if (suitable.length === 0) {
+        const itemName = (i: any) => i.name ?? (bot.registry as any)?.itemsById?.[i.type]?.name ?? `#${i.type}`
+        const have = [...new Set(bot.inventory.items().map(itemName))]
+        throw new Error(
+          `Refusing to mine ${blockName}: no suitable tool in inventory. ` +
+          `Need one of: ${harvest.names.join(', ')}. ` +
+          `Inventory has: ${have.length ? have.join(', ') : '(empty)'}. ` +
+          'Tip: craft/get the tool first, or pass { force: true } to dig anyway (block breaks but drops NOTHING).'
+        )
+      }
+    }
+
     const block = bot.findNearest(blockName, maxDistance)
     if (!block) throw new Error(`Block not found: ${blockName} within ${maxDistance} blocks. Try coming closer or increasing maxDistance`)
 
@@ -302,6 +333,14 @@ export function injectSimple(bot: MinevlayerBot) {
 
   bot.mine = async (blockName: string, count = 1, options: BreakOptions = {}): Promise<void> => {
     await bot.break(blockName, { ...options, count })
+  }
+
+  // bot.dig('diamond_ore') — как в мечте: имя блока вместо 50 строк майнфлеера.
+  // Для совместимости со старым API: если передали объект Block — зовём оригинальный dig.
+  const originalDig = anyBot.dig
+  ;(bot as any).dig = async (blockOrName: any, force?: boolean) => {
+    if (typeof blockOrName === 'string') return bot.break(blockOrName)
+    return originalDig.call(bot, blockOrName, force)
   }
 
   bot.collect = async (blockName: string, count = 1, options: CollectOptions = {}): Promise<void> => {

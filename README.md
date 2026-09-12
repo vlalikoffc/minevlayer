@@ -49,6 +49,7 @@ Requires Node.js >= 22.
 | Task | Code |
 |---|---|
 | Break nearest oak log | `await bot.break('oak_log')` |
+| Dig diamond ore (smart) | `await bot.dig('diamond_ore')` |
 | Mine 5 stones | `await bot.mine('stone', 5)` |
 | Break + collect drops | `await bot.collect('diamond_ore', 3)` |
 | Go to coordinates | `await bot.goto({ x: 100, y: 64, z: 200 })` |
@@ -94,6 +95,9 @@ Events: `health`, `danger_hp`, `hungry`, `threat`, `entity`, `playerJoined`, `pl
 
 How the smarts work:
 
+- **Tool gating.** `bot.dig('diamond_ore')` refuses to dig if you don't have a tool that actually yields drops (diamond ore = iron pickaxe or better — gold doesn't count, checked from game data for any version). The error tells you exactly what's needed and what you have. Force it with `{ force: true }` if you know better.
+- **Obstacles.** With `mineflayer-pathfinder` installed, the bot digs/bridges through the path automatically; without it, the naive walker jumps 1-block steps and digs 2-block walls.
+- Default count is always **1 block** unless you say otherwise: `bot.mine('stone', 5)`.
 - With `mineflayer-pathfinder` installed, `goto`/`follow` use real pathfinding; without it, a built-in naive walker (flat terrain only).
 - With `mineflayer-collectblock`, `collect()` breaks and picks up drops properly; without it, it mines and waits for drops.
 - Errors tell you what to do: `goto timeout ... Tip: install mineflayer-pathfinder`.
