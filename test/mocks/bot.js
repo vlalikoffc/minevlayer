@@ -38,8 +38,15 @@ function createMockBot (opts = {}) {
 
   bot.username = 'TestBot'
   bot.version = opts.version || '9.9.9' // несуществующая версия: фолбэки на minecraft-data не сработают
-  bot.food = 20
-  bot.game = { gameMode: 'survival' }
+  bot.food = opts.food ?? 20
+  bot.foodSaturation = opts.saturation ?? 5
+  bot.health = opts.health ?? 20
+  bot.isRaining = opts.isRaining ?? false
+  bot.time = { timeOfDay: opts.timeOfDay ?? 6000 }
+  bot.experience = opts.experience ?? { points: 3, progress: 0.5, level: 2 }
+  bot.heldItem = opts.heldItem ?? null
+  bot.entities = opts.entities || {}
+  bot.game = { gameMode: 'survival', dimension: opts.dimension || 'minecraft:overworld' }
   bot.players = opts.players || {}
   bot.entity = {
     position: opts.position ? new Vec3(...opts.position) : new Vec3(0, 64, 0),

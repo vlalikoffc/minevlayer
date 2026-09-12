@@ -25,6 +25,9 @@ export type { MinevlayerBot, BreakOptions, GotoOptions, FollowOptions, PlaceOpti
 const mineflayer = require('mineflayer')
 
 import { injectSimple } from './simple'
+import { Brain } from './brain'
+export { Brain, HOSTILE_MOBS } from './brain'
+export type { BrainState, EntityInfo, BrainEvents } from './brain'
 
 const log = (...args: unknown[]): void => console.log('[minevlayer]', ...args)
 
@@ -41,6 +44,9 @@ export function createBot(options: Partial<BotOptions> & { autoPathfinder?: bool
 
   // простые методы доступны сразу, даже до 'spawn'
   injectSimple(bot)
+
+  // мозг: состояние и обстановка в реальном времени
+  bot.brain = new Brain(bot)
 
   // подхватываем опциональные плагины, если они установлены (безопасный no-op, если нет)
   bot.once('inject_allowed', () => {

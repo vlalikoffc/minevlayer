@@ -63,8 +63,34 @@ Requires Node.js >= 22.
 | Guard a spot | `bot.guard({ x, y, z }, 15)` |
 | Eat automatically | `bot.autoEat()` |
 | Find blocks | `bot.findNearest('iron_ore')`, `bot.findAll('iron_ore', 64, 10)` |
+| Full state snapshot | `bot.brain.state()` |
+| Who's around | `bot.brain.nearby(16)` / `bot.brain.threats()` |
+| Live status line | `bot.brain.reportEvery(1000)` |
 
 Options everywhere: `bot.break('stone', { maxDistance: 32, count: 5, autoTool: true })`.
+
+## Brain — the bot's mind, realtime
+
+In raw mineflayer, knowing "what's happening around me" means dozens of event
+subscriptions. With minevlayer it's one object, always up to date:
+
+```js
+bot.brain.state() // { hp, food, position, dimension, xp, heldItem, threatsNearby, ... }
+bot.brain.describe() // "HP 14/20 | food 18/20 | 10 64 -20 | overworld | players: 2 | threats: 1"
+bot.brain.reportEvery(1000) // print state to the console every second
+
+bot.brain.nearby(16) // everyone around, closest first
+bot.brain.threats() // hostile mobs within threat radius
+bot.brain.isSafe() // no hostiles around?
+bot.brain.who('Steve') // find by name
+
+// events
+bot.brain.on('threat', (e) => bot.chat(`${e.name} at ${e.distance.toFixed(1)} blocks!`))
+bot.brain.on('danger_hp', (hp) => bot.autoEat())
+bot.brain.on('playerJoined', (name) => bot.chat(`Hi ${name}!`))
+```
+
+Events: `health`, `danger_hp`, `hungry`, `threat`, `entity`, `playerJoined`, `playerLeft`, `death`.
 
 How the smarts work:
 

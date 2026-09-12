@@ -1,9 +1,14 @@
 import type { Vec3 } from 'vec3'
 import type { Block } from 'prismarine-block'
 import type { Entity } from 'prismarine-entity'
+import type { Brain } from './brain'
 
 /** Бот, у которого не нужен стандартный toss (переопределяем его) */
 export type MinevlayerBot = import('mineflayer').Bot & {
+  // === Мозг: состояние и обстановка в реальном времени ===
+  /** Состояние бота и мир вокруг: `bot.brain.state()`, `bot.brain.threats()`, `bot.brain.describe()`. */
+  brain: Brain
+
   // === 1 действие = 1 строка ===
   /** Сломать ближайший блок по имени ("oak_log", "stone"). Сам найдёт, дойдёт, выберет инструмент и сломает. */
   break(blockName: string, options?: BreakOptions): Promise<void>
