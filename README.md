@@ -109,10 +109,12 @@ bot.brain.todo() // ['eat', 'heal', 'fight_or_flee', 'sleep', 'replace_tool'] â€
 The bot is adapted for survival, not just mining:
 
 ```js
-await bot.feed() // eat the simplest food from inventory (refuses with a tip if there's none)
-await bot.heal() // eat until hunger is full so health regenerates
-await bot.sleepNow() // find the nearest bed, walk to it, sleep (clear error if impossible)
-await bot.craftChain('iron_pickaxe') // auto-crafts missing ingredients first: planks <- logs, sticks <- planks...
+bot.on('spawn', async () => {
+  await bot.feed() // eat the simplest food from inventory (refuses with a tip if there's none)
+  await bot.heal() // eat until hunger is full so health regenerates
+  await bot.sleepNow() // find the nearest bed, walk to it, sleep (clear error if impossible)
+  await bot.craftChain('iron_pickaxe') // auto-crafts missing ingredients first: planks <- logs, sticks <- planks...
+})
 ```
 
 `craftChain` walks to a crafting table when the recipe needs one, and tells you
