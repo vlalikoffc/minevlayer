@@ -1,0 +1,13 @@
+# shared with .npmignore
+# different than .npmignore
+node_modules
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+versions/
+server_jars/
+test/server_*
+.vscode
+.DS_Store
+launcher_accounts.json
+data
