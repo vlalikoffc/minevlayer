@@ -1,20 +1,26 @@
 {
   "name": "minevlayer",
-  "version": "4.39.0",
-  "description": "Minecraft bots in one line — TypeScript wrapper over Mineflayer (70x simpler API for beginners)",
-  "keywords": ["minecraft", "mineflayer", "bot", "minecraft-bot", "wrapper", "typescript"],
+  "version": "0.1.0",
+  "description": "Smart TypeScript layer over Mineflayer: 1 action = 1 line. Mineflayer stays untouched, vendored in vendor/mineflayer.",
+  "keywords": ["minecraft", "mineflayer", "bot", "minecraft-bot", "wrapper", "typescript", "one-liner"],
   "author": "vlalikoffc <225565472+vlalikoffc@users.noreply.github.com>",
-  "contributors": ["Andrew Kelley (original Mineflayer)", "PrismarineJS"],
+  "contributors": ["PrismarineJS (Mineflayer engine, vendored in vendor/mineflayer)"],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
-    "mocha_test": "mocha --reporter ./test/common/durationsReporter.js --exit",
-    "test": "npm run build && npm run mocha_test",
+    "test": "npm run build && mocha 'test/unit/**/*.test.js' --exit",
+    "test:vendor": "cd vendor/mineflayer && npm install && npm run mocha_test",
     "pretest": "npm run lint",
-    "lint": "standard --ignore-pattern dist --ignore-pattern node_modules && standard-markdown",
-    "fix": "standard --fix --ignore-pattern dist && standard-markdown --fix",
+    "lint": "standard --ignore-pattern dist --ignore-pattern vendor --ignore-pattern node_modules && standard-markdown README.md",
+    "fix": "standard --fix --ignore-pattern dist --ignore-pattern vendor && standard-markdown --fix README.md",
     "prepublishOnly": "npm run build"
   },
   "files": [
@@ -32,8 +38,8 @@
   "engines": {
     "node": ">=22"
   },
-  "license": "MIT",
   "dependencies": {
+    "mineflayer": "file:vendor/mineflayer",
     "minecraft-data": "^3.114.0",
     "minecraft-protocol": "^1.67.0",
     "mojangson": "^2.0.4",
@@ -66,16 +72,11 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.1",
-    "@types/vec3": "^0.1.2",
-    "doctoc": "^2.0.1",
-    "minecraft-wrap": "^1.3.0",
-    "minevlayer": "./",
-    "mineflayer": "./",
     "mocha": "^11.0.1",
-    "protodef-yaml": "^1.5.3",
     "standard": "^17.0.0",
     "standard-markdown": "^7.1.0",
-    "typescript": "^5.4.5",
-    "ts-node": "^10.9.2"
-  }
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "license": "MIT"
 }

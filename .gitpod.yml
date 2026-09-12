@@ -1,2 +1,2 @@
 tasks:
-- command: npm install && sdk install java
+- command: npm install

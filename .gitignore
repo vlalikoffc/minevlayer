@@ -11,3 +11,12 @@ test/server_*
 .DS_Store
 launcher_accounts.json
 data
+
+# build output of src/ (npm run build)
+dist/
+
+# vendored mineflayer's own install/test artifacts
+vendor/mineflayer/node_modules
+vendor/mineflayer/versions
+vendor/mineflayer/server_jars
+*.tgz

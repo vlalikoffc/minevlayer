@@ -1,83 +1,89 @@
-import type { Bot, BotOptions } from '../index'
 import type { Vec3 } from 'vec3'
 import type { Block } from 'prismarine-block'
 import type { Entity } from 'prismarine-entity'
 
-export type MinevlayerBot = Omit<Bot, 'toss'> & {
-  // === Ультра-простые методы ===
-  /** Сломать ближайший блок по имени (например "oak_log", "stone"). Сам найдёт, дойдёт и сломает. */
+/** Бот, у которого не нужен стандартный toss (переопределяем его) */
+export type MinevlayerBot = import('mineflayer').Bot & {
+  // === 1 действие = 1 строка ===
+  /** Сломать ближайший блок по имени ("oak_log", "stone"). Сам найдёт, дойдёт, выберет инструмент и сломает. */
   break(blockName: string, options?: BreakOptions): Promise<void>
-  /** Накопать N блоков (alias для break с count) */
+  /** Накопать N блоков (то же, что break с count). */
   mine(blockName: string, count?: number, options?: BreakOptions): Promise<void>
-  /** Собрать ресурсы (копать + подобрать дроп) */
+  /** Собрать ресурс: сломать и подобрать дроп (через collectblock, если установлен). */
   collect(blockName: string, count?: number, options?: CollectOptions): Promise<void>
 
-  /** Идти к координатам / к игроку / к блоку — 1 строка */
+  /** Идти к координатам / игроку ("player:Notch" или "Notch") / блоку ("chest"). */
   goto(target: Vec3 | { x: number, y: number, z: number } | string | Entity, options?: GotoOptions): Promise<void>
-  /** Следовать за игроком/существом */
+  /** Следовать за игроком/существом. */
   follow(target: string | Entity, options?: FollowOptions): Promise<void>
-  /** Остановиться */
+  /** Полная остановка: движение, следование, охрана, копание. */
   stop(): void
 
-  /** Поставить блок — укажи что ставить и куда */
-  place(blockName: string, reference?: Block | Vec3, options?: PlaceOptions): Promise<void>
-  /** Экипировать лучший инструмент для блока или по имени */
+  /** Поставить блок из инвентаря. */
+  place(blockName: string, reference?: Block | Vec3 | { x: number, y: number, z: number }, options?: PlaceOptions): Promise<void>
+  /** Экипировать лучший инструмент для блока (или предмет по имени). */
   equipBest(blockOrItem?: string | Block): Promise<void>
-  /** Есть ли предмет в инвентаре */
+  /** Хватает ли предмета в инвентаре. */
   has(itemName: string, count?: number): boolean
-  /** Выбросить предмет */
+  /** Выбросить предмет (весь стек или N штук). */
   toss(itemName: string, count?: number): Promise<void>
 
-  /** Построить (пока заглушка) */
-  build(structure: string, options?: any): Promise<void>
-  /** Скрафтить */
+  /** Скрафтить по первому доступному рецепту. */
   craftSimple(itemName: string, count?: number, craftingTable?: Block | boolean): Promise<void>
 
-  /** Чат сахор */
+  /** Чат-триггер: вызвать callback, когда кто-то напишет сообщение с триггером. */
   onChat(trigger: string | RegExp, callback: (username: string, message: string) => void): void
-  /** Подождать тиков */
+  /** Подождать N серверных тиков. */
   wait(ticks: number): Promise<void>
-  /** Сказать в чат с задержкой */
+  /** Сказать в чат (опционально с задержкой в мс). */
   say(message: string, delayMs?: number): void
 
-  /** Авто-еда */
+  /** Автоматически есть при низком голоде. */
   autoEat(): void
-  /** Охрана точки */
+  /** Охранять точку: атаковать мобов в радиусе. */
   guard(position: Vec3 | { x: number, y: number, z: number }, radius?: number): void
 
-  /** Найти ближайший блок */
+  /** Найти ближайший блок по имени. */
   findNearest(blockName: string, maxDistance?: number): Block | null
-  /** Найти все блоки */
-  findAll(blockName: string, maxDistance?: number, count?: number): import('vec3').Vec3[]
+  /** Найти до N блоков по имени, вернуть координаты. */
+  findAll(blockName: string, maxDistance?: number, count?: number): Vec3[]
 
-  // sugar
+  /** Алиас для bot.on, чтобы код читался проще. */
   when(event: string, callback: (...args: any[]) => void): void
 }
 
 export interface BreakOptions {
-  maxDistance?: number // default 64
-  count?: number // сколько сломать
-  autoTool?: boolean // default true — сам выберет кирку/топор
-  timeoutMs?: number // таймаут на один блок
-  drop?: boolean
+  /** Радиус поиска блока. @default 64 */
+  maxDistance?: number
+  /** Сколько блоков сломать. @default 1 */
+  count?: number
+  /** Самому выбрать лучший инструмент. @default true */
+  autoTool?: boolean
+  /** Таймаут на подход к блоку, мс. */
+  timeoutMs?: number
 }
 
 export interface CollectOptions extends BreakOptions {}
 
 export interface GotoOptions {
-  range?: number // дистанция до цели, default 1
+  /** На каком расстоянии от цели остановиться. @default 1 */
+  range?: number
+  /** Таймаут, мс. @default 30000 (с pathfinder) / 15000 (без) */
   timeoutMs?: number
+  /** Бежать вместо ходьбы (только наивный режим без pathfinder). */
   sprint?: boolean
-  // если есть pathfinder — передаём напрямую
-  pathfinder?: any
 }
 
 export interface FollowOptions {
-  distance?: number // держать дистанцию, default 2
-  continuous?: boolean // следовать постоянно, default true
+  /** Какую дистанцию держать. @default 2 */
+  distance?: number
+  /** Следовать постоянно (иначе — подойти один раз). @default true */
+  continuous?: boolean
 }
 
 export interface PlaceOptions {
-  face?: Vec3 // вектор грани
-  autoEquip?: boolean // default true
+  /** Грань, на которую ставить. @default (0,1,0) — верхняя */
+  face?: Vec3
+  /** Самому взять блок из инвентаря в руку. @default true */
+  autoEquip?: boolean
 }

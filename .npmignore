@@ -1,3 +1,12 @@
-# shared with .gitignore
-# different than .gitignore
+# slim down the published tarball (the whitelist is package.json "files")
+vendor/mineflayer/test
+vendor/mineflayer/docs
+vendor/mineflayer/examples
+vendor/mineflayer/.github
+vendor/mineflayer/node_modules
+src
 test
+examples
+tsconfig.json
+.gitpod.yml
+.github

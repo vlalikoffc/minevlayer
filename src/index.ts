@@ -1,101 +1,77 @@
 /**
- * minevlayer — wrapper over mineflayer, 70× simpler.
- * mineflayer stays in vendor/mineflayer (JS, untouched). This layer is TS.
+ * minevlayer — умный TypeScript-слой над Mineflayer.
  *
- * Usage:
- *   import { createBot } from 'minevlayer'
- *   const bot = createBot({ host: 'localhost', username: 'VlBot' })
- *   await bot.break("oak_log") // 1 line instead of 15
- */
-
-import type { BotOptions } from '../index'
-import type { MinevlayerBot } from './types'
-export type { MinevlayerBot, BreakOptions, GotoOptions, FollowOptions, PlaceOptions, CollectOptions } from './types'
-
-// mineflayer core — vendor in vendor/mineflayer (JS)
-const mineflayer: any = require('../vendor/mineflayer')
-import { injectSimple } from './simple'
-
-/**
- * Создать бота minevlayer. Внутри — обычный mineflayer бот, но с сахаром.
- * 
- * Пример для чайника (7 строк — и бот готов):
+ * Философия:
+ *  - 1 действие = 1 строка (`await bot.break('oak_log')`).
+ *  - База (mineflayer) не трогается: она лежит в vendor/mineflayer и подключается
+ *    как обычная зависимость (`"mineflayer": "file:vendor/mineflayer"`).
+ *  - Весь оригинальный API mineflayer остаётся доступным на том же боте.
+ *
+ * Использование:
  * ```ts
  * import { createBot } from 'minevlayer'
  * const bot = createBot({ host: 'localhost', username: 'MyBot' })
  * bot.on('spawn', async () => {
- *   await bot.mine("oak_log", 5) // добудь 5 брёвен
- *   bot.chat("Готово!")
+ *   await bot.mine('oak_log', 5) // 1 строка: найти, дойти, экипировать, копать
  * })
  * ```
  */
-export function createBot(options: Partial<BotOptions> = {}): MinevlayerBot {
-  // Прокидываем скрытую опцию — грузить ли pathfinder автоматом если установлен
-  const autoLoadPathfinder = (options as any).autoPathfinder ?? true
 
-  // Создаём базового mineflayer бота
+import type { BotOptions } from 'mineflayer'
+import type { MinevlayerBot } from './types'
+export type { MinevlayerBot, BreakOptions, GotoOptions, FollowOptions, PlaceOptions, CollectOptions } from './types'
+
+// mineflayer — зависимость из vendor (см. package.json)
+const mineflayer = require('mineflayer')
+
+import { injectSimple } from './simple'
+
+const log = (...args: unknown[]): void => console.log('[minevlayer]', ...args)
+
+/**
+ * Создать бота. Внутри — обычный mineflayer-бот + простые методы.
+ *
+ * Дополнительные опции:
+ *  - `autoPathfinder: false` — не грузить mineflayer-pathfinder автоматически.
+ */
+export function createBot(options: Partial<BotOptions> & { autoPathfinder?: boolean } = {}): MinevlayerBot {
+  const autoPathfinder = options.autoPathfinder ?? true
+
   const bot = mineflayer.createBot(options) as MinevlayerBot
 
-  // Инжектим простые методы сразу (даже до spawn — чтобы были доступны)
+  // простые методы доступны сразу, даже до 'spawn'
   injectSimple(bot)
 
-  // Пытаемся подгрузить полезные плагины автоматом (если установлены)
-  // Это не ломает бота если их нет — просто игнорируем
+  // подхватываем опциональные плагины, если они установлены (безопасный no-op, если нет)
   bot.once('inject_allowed', () => {
-    // pathfinder
-    if (autoLoadPathfinder) {
+    if (autoPathfinder) {
       try {
         const { pathfinder } = require('mineflayer-pathfinder')
-        // mineflayer-pathfinder экспортирует плагин как `pathfinder`
-        if (typeof bot.loadPlugin === 'function' && pathfinder) {
-          bot.loadPlugin(pathfinder)
-          // console.log('[minevlayer] pathfinder подключен — goto() будет умным')
-        }
-      } catch {}
+        if (typeof bot.loadPlugin === 'function' && pathfinder) bot.loadPlugin(pathfinder)
+      } catch { /* optional */ }
     }
-    // collectblock
     try {
       const collectBlock = require('mineflayer-collectblock')
-      const plugin = collectBlock.plugin || collectBlock
-      if (plugin) bot.loadPlugin(plugin)
-    } catch {}
-    // pvp
+      bot.loadPlugin(collectBlock.plugin || collectBlock)
+    } catch { /* optional */ }
     try {
       const pvp = require('mineflayer-pvp')
-      const plugin = pvp.plugin || pvp
-      if (plugin) bot.loadPlugin(plugin)
-    } catch {}
-    // auto-eat
+      bot.loadPlugin(pvp.plugin || pvp)
+    } catch { /* optional */ }
     try {
       const autoEat = require('mineflayer-auto-eat')
-      // auto-eat обычно использует bot.loadPlugin(autoEat) или loader
       if (typeof autoEat === 'function') bot.loadPlugin(autoEat)
       else if (autoEat?.plugin) bot.loadPlugin(autoEat.plugin)
-    } catch {}
+    } catch { /* optional */ }
   })
 
-  // Логи для новичков
-  const origWarn = (bot as any)._warn || console.warn
-  bot.on('kicked', (reason: string) => console.log(`[minevlayer] кикнут: ${reason}`))
-  bot.on('error', (err: Error) => console.log(`[minevlayer] ошибка: ${err.message}`))
+  // конкретные логи вместо тихих падений
+  bot.on('kicked', (reason: string) => log('kicked:', reason))
+  bot.on('error', (err: Error) => console.error('[minevlayer] error:', err.stack || err.message))
+  bot.on('end', (reason: string) => log('connection ended:', reason))
 
   return bot
 }
 
-// Ре-экспорт всего из mineflayer для совместимости
-// Чтобы можно было делать `import * as minevlayer from 'minevlayer'` и иметь доступ к Location и т.д.
-export const Location = mineflayer.Location
-export const Painting = mineflayer.Painting
-export const ScoreBoard = mineflayer.ScoreBoard
-export const BossBar = mineflayer.BossBar
-export const Particle = mineflayer.Particle
-export const supportFeature = mineflayer.supportFeature
-export const testedVersions = mineflayer.testedVersions
-export const latestSupportedVersion = mineflayer.latestSupportedVersion
-export const oldestSupportedVersion = mineflayer.oldestSupportedVersion
-
-// Также экспортируем сам mineflayer как vendor для продвинутых
-export const mineflayerCore = mineflayer
-
-// Default export для удобства
-export default { createBot }
+/** Версия движка (вендорного mineflayer). */
+export const engineVersion: string = require('mineflayer/package.json').version

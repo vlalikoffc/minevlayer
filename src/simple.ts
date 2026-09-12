@@ -1,16 +1,21 @@
 import { Vec3 } from 'vec3'
 import type { MinevlayerBot, BreakOptions, GotoOptions, FollowOptions, PlaceOptions, CollectOptions } from './types'
-import { getBlockId, getItemId, findBestTool, toVec3, isEntity, findBlocksForName, sleepMs } from './helpers'
+import { getBlockId, getItemId, findBestTool, toVec3, isEntity, findBlocksForName, sleepMs, withTimeout } from './helpers'
 import type { Block } from 'prismarine-block'
 import type { Entity } from 'prismarine-entity'
 
+/**
+ * Инжектим простые методы в обычного mineflayer-бота.
+ * Правило: 1 действие = 1 строка. Всё «умное» (поиск, подход, инструмент) — внутри.
+ */
 export function injectSimple(bot: MinevlayerBot) {
+  const anyBot: any = bot
+
   // ---------- FIND ----------
   bot.findNearest = (blockName: string, maxDistance = 64) => {
     const positions = findBlocksForName(bot, blockName, maxDistance, 1)
     if (positions.length === 0) return null
-    const pos = positions[0]
-    return bot.blockAt(pos)
+    return bot.blockAt(positions[0])
   }
 
   bot.findAll = (blockName: string, maxDistance = 64, count = 10) => {
@@ -21,17 +26,14 @@ export function injectSimple(bot: MinevlayerBot) {
   bot.equipBest = async (blockOrItem?: string | Block) => {
     let block: Block | null = null
     if (typeof blockOrItem === 'string') {
-      // ищем блок по имени в мире чтобы понять какой инструмент нужен
+      // ищем блок рядом, чтобы понять, какой инструмент нужен
       block = bot.findNearest(blockOrItem, 4)
       if (!block) {
-        // если блока рядом нет, просто пробуем экипировать предмет по имени
+        // блока рядом нет — просто берём предмет по имени
         const itemId = getItemId(bot, blockOrItem)
         if (itemId !== null) {
           const item = bot.inventory.items().find(i => i.type === itemId)
-          if (item) {
-            await bot.equip(item, 'hand')
-            return
-          }
+          if (item) await bot.equip(item, 'hand')
         }
         return
       }
@@ -44,13 +46,9 @@ export function injectSimple(bot: MinevlayerBot) {
       if (bestSlot !== null) {
         const item = bot.inventory.slots[bestSlot]
         if (item) {
-          try { await bot.equip(item, 'hand') } catch {}
+          try { await bot.equip(item, 'hand') } catch { /* мог забрать другой плагин */ }
         }
       }
-    } else {
-      // без блока — просто берём первый инструмент
-      const item = bot.inventory.items()[0]
-      if (item) try { await bot.equip(item, 'hand') } catch {}
     }
   }
 
@@ -63,25 +61,26 @@ export function injectSimple(bot: MinevlayerBot) {
     return total >= count
   }
 
+  // ВАЖНО: сохраняем оригинальный toss ДО переопределения,
+  // иначе было бы бесконечная рекурсия (метод зовёт сам себя).
+  const originalToss = anyBot.toss
   ;(bot as any).toss = async (itemName: string, count?: number) => {
     const id = getItemId(bot, itemName)
     if (id === null) throw new Error(`Unknown item: ${itemName}`)
-    const item = bot.inventory.items().find(i => i.type === id)
-    if (!item) throw new Error(`No ${itemName} in inventory`)
+    const stacks = bot.inventory.items().filter(i => i.type === id)
+    if (stacks.length === 0) throw new Error(`No ${itemName} in inventory`)
     if (count === undefined) {
-      await bot.tossStack(item)
-    } else {
-      // выбрасываем по частям
-      let remaining = count
-      const stacks = bot.inventory.items().filter(i => i.type === id)
-      for (const stack of stacks) {
-        if (remaining <= 0) break
-        const toToss = Math.min(stack.count, remaining)
-        // вызываем оригинальный toss с числовыми аргументами через any чтобы обойти перегрузку
-        await (bot as any).toss(stack.type, null, toToss)
-        remaining -= toToss
-      }
+      await bot.tossStack(stacks[0])
+      return
     }
+    let remaining = count
+    for (const stack of stacks) {
+      if (remaining <= 0) break
+      const toToss = Math.min(stack.count, remaining)
+      await originalToss.call(bot, stack.type, null, toToss)
+      remaining -= toToss
+    }
+    if (remaining > 0) throw new Error(`Had only ${count - remaining} ${itemName}, wanted to toss ${count}`)
   }
 
   // ---------- GOTO ----------
@@ -90,24 +89,25 @@ export function injectSimple(bot: MinevlayerBot) {
     let pos: Vec3
 
     if (typeof target === 'string') {
-      // "player:Notch" или просто "Notch" или "100 64 200"
-      if (target.includes(' ')) {
-        const parts = target.split(/\s+/).map(Number)
+      if (/\s/.test(target.trim()) || /^-?\d+(\.\d+)?(,-?\d+(\.\d+)?){2}$/.test(target.trim())) {
+        // "100 64 200" или "100,64,200"
+        const parts = target.trim().split(/[\s,]+/).map(Number)
+        if (parts.length !== 3 || parts.some(isNaN)) throw new Error(`Cannot parse coordinates: "${target}"`)
         pos = new Vec3(parts[0], parts[1], parts[2])
       } else if (target.startsWith('player:')) {
-        const name = target.slice(7)
+        const name = target.slice('player:'.length)
         const player = bot.players[name]
         if (!player?.entity) throw new Error(`Player ${name} not found`)
         pos = player.entity.position.clone()
       } else {
-        // пробуем как ник игрока
+        // сначала пробуем как ник игрока
         const player = bot.players[target]
         if (player?.entity) {
           pos = player.entity.position.clone()
         } else {
-          // пробуем как имя блока — идём к ближайшему блоку
+          // потом как имя блока — идём к ближайшему
           const block = bot.findNearest(target, 64)
-          if (!block) throw new Error(`Cannot resolve goto target: ${target}`)
+          if (!block) throw new Error(`Cannot resolve goto target: "${target}" (not a player, not a known block nearby)`)
           pos = block.position.clone()
         }
       }
@@ -117,130 +117,146 @@ export function injectSimple(bot: MinevlayerBot) {
       pos = toVec3(target)
     }
 
-    // если есть pathfinder — используем его
-    const anyBot: any = bot
+    // уже на месте — не дёргаем физику
+    if (bot.entity && bot.entity.position.distanceTo(pos) <= range) return
+
+    // если есть pathfinder — используем его (умная навигация)
     if (anyBot.pathfinder) {
-      const { goals } = require('mineflayer-pathfinder')
-      const goal = new goals.GoalNear(pos.x, pos.y, pos.z, range)
-      // таймаут
       const timeoutMs = options.timeoutMs ?? 30_000
-      return await Promise.race([
-        anyBot.pathfinder.goto(goal),
-        sleepMs(timeoutMs).then(() => { throw new Error(`goto timeout to ${pos}`) })
-      ])
-    }
-
-    // fallback: пробуем через простую физику
-    // если креатив — летим
-    if (bot.game.gameMode === 'creative' && bot.creative?.flyTo) {
+      let goal: any
       try {
-        await bot.creative.flyTo(pos.offset(0.5, 0, 0.5))
-        return
-      } catch {}
+        const { goals } = require('mineflayer-pathfinder')
+        goal = new goals.GoalNear(pos.x, pos.y, pos.z, range)
+      } catch {
+        // pathfinder загружен, но модуль не резолвится — строим минимальную цель сами
+        goal = { x: pos.x, y: pos.y, z: pos.z, range }
+      }
+      await withTimeout(anyBot.pathfinder.goto(goal), timeoutMs, `goto timeout: cannot reach ${pos} in ${timeoutMs}ms`)
+      return
     }
 
-    // иначе — наивная ходьба: смотрим на цель и идём
-    // Это примитив, но работает на ровной местности. Для сложного — нужен pathfinder.
-    const distance = bot.entity.position.distanceTo(pos)
-    if (distance <= range) return
+    // креатив — просто летим
+    if (bot.game?.gameMode === 'creative' && (bot as any).creative?.flyTo) {
+      try {
+        await (bot as any).creative.flyTo(pos.offset(0.5, 0, 0.5))
+        return
+      } catch { /* падаем в наивную ходьбу */ }
+    }
 
-    // пытаемся идти прямо
+    // наивная ходьба: смотрим на цель и идём вперёд, прыгаем в препятствия.
+    // Для сложной местности поставьте mineflayer-pathfinder.
     await bot.lookAt(pos.offset(0.5, 1, 0.5))
     bot.setControlState('forward', true)
     if (options.sprint) bot.setControlState('sprint', true)
 
     const start = Date.now()
-    const timeout = options.timeoutMs ?? 15000
+    const timeout = options.timeoutMs ?? 15_000
 
     await new Promise<void>((resolve, reject) => {
-      const interval = setInterval(() => {
+      let settled = false
+      const cleanup = () => {
+        if (settled) return
+        settled = true
+        clearInterval(walkTimer)
+        clearInterval(jumpTimer)
+        bot.clearControlStates()
+      }
+
+      const walkTimer = setInterval(() => {
         const dist = bot.entity.position.distanceTo(pos)
         if (dist <= range) {
-          clearInterval(interval)
-          bot.clearControlStates()
+          cleanup()
           resolve()
+          return
         }
         if (Date.now() - start > timeout) {
-          clearInterval(interval)
-          bot.clearControlStates()
+          cleanup()
           reject(new Error(`goto timeout: still ${dist.toFixed(1)} blocks away from ${pos}. Tip: install mineflayer-pathfinder for smart navigation`))
         }
-        // прыжок если упёрлись
-        if (bot.entity.onGround && bot.blockAt(bot.entity.position.offset(0, -0.1, 0))) {
-          // auto jump handled by physics?
-        }
       }, 100)
-      // также прыгаем при препятствии
-      const jumpCheck = setInterval(() => {
+
+      const jumpTimer = setInterval(() => {
+        // прыгаем, если впереди блок, а над ним свободно
+        const yaw = bot.entity.yaw ?? 0
         const front = bot.entity.position.offset(
-          Math.cos((bot.entity.yaw + Math.PI) * -1) * 0.5,
+          Math.cos((yaw + Math.PI) * -1) * 0.5,
           0,
-          Math.sin((bot.entity.yaw + Math.PI) * -1) * 0.5
+          Math.sin((yaw + Math.PI) * -1) * 0.5
         )
-        const blockAhead = bot.blockAt(front.offset(0, 0, 0))
+        const blockAhead = bot.blockAt(front)
         const blockAbove = bot.blockAt(front.offset(0, 1, 0))
         if (blockAhead && blockAhead.boundingBox === 'block' && (!blockAbove || blockAbove.boundingBox !== 'block')) {
           bot.setControlState('jump', true)
           setTimeout(() => bot.setControlState('jump', false), 300)
         }
       }, 400)
-      // cleanup on finish
-      const cleanup = () => { clearInterval(jumpCheck) }
-      // wrap resolve/reject to cleanup
-      const origResolve = resolve
-      const origReject = reject
-      // monkey patch via closure — easier: just clear on both
-      // we handle above, but also clear jumpCheck there
     })
-
-    bot.clearControlStates()
   }
 
+  // ---------- FOLLOW ----------
   bot.follow = async (target: string | Entity, options: FollowOptions = {}) => {
     const distance = options.distance ?? 2
+    const continuous = options.continuous !== false
     const entity: Entity | undefined = typeof target === 'string'
       ? bot.players[target]?.entity || bot.nearestEntity(e => (e as any).username === target || e.name === target) || undefined
       : target as Entity
 
     if (!entity) throw new Error(`follow target not found: ${target}`)
 
-    if ((bot as any).pathfinder) {
-      const { goals } = require('mineflayer-pathfinder')
-      const anyBot: any = bot
-      // если continuous — ставим goal динамически
-      if (options.continuous !== false) {
-        const follow = () => {
-          const goal = new goals.GoalFollow(entity, distance)
-          anyBot.pathfinder.setGoal(goal, true)
+    const stopFollow = () => {
+      if (anyBot._followInterval) {
+        clearInterval(anyBot._followInterval)
+        anyBot._followInterval = null
+      }
+    }
+    stopFollow() // одно следование за раз
+
+    if (anyBot.pathfinder) {
+      try {
+        const { goals } = require('mineflayer-pathfinder')
+        if (!continuous) {
+          await anyBot.pathfinder.goto(new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, distance))
+          return
         }
-        follow()
-        // обновляем каждые 0.5с
-        const iv = setInterval(() => {
-          if (!entity.isValid) { clearInterval(iv); return }
-          follow()
+        anyBot.pathfinder.setGoal(new goals.GoalFollow(entity, distance), true)
+        anyBot._followInterval = setInterval(() => {
+          if (!entity.isValid) { stopFollow(); return }
+          anyBot.pathfinder.setGoal(new goals.GoalFollow(entity, distance), true)
         }, 500)
-        // остановить следование можно через bot.stop()
-        ;(bot as any)._followInterval = iv
         return
-      } else {
-        const goal = new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, distance)
-        await anyBot.pathfinder.goto(goal)
-        return
+      } catch {
+        // нет модуля целей — падаем в наивный режим ниже
       }
     }
 
-    // fallback без pathfinder
-    await bot.goto(entity.position, { range: distance })
+    // наивный режим: постоянно поворачиваемся к цели и идём, пока не остановят через bot.stop()
+    if (!continuous) {
+      await bot.goto(entity.position, { range: distance })
+      return
+    }
+    anyBot._followInterval = setInterval(() => {
+      if (!entity.isValid || !bot.entity) { stopFollow(); return }
+      const dist = bot.entity.position.distanceTo(entity.position)
+      if (dist > distance) {
+        bot.lookAt(entity.position).catch(() => {})
+        bot.setControlState('forward', true)
+      } else {
+        bot.clearControlStates()
+      }
+    }, 250)
   }
 
   bot.stop = () => {
-    const anyBot: any = bot
     if (anyBot.pathfinder) {
       try { anyBot.pathfinder.setGoal(null) } catch {}
     }
     if (anyBot._followInterval) {
       clearInterval(anyBot._followInterval)
       anyBot._followInterval = null
+    }
+    if (anyBot._guardHandler) {
+      bot.removeListener('physicsTick', anyBot._guardHandler)
+      anyBot._guardHandler = null
     }
     bot.clearControlStates()
     try { bot.stopDigging() } catch {}
@@ -254,24 +270,19 @@ export function injectSimple(bot: MinevlayerBot) {
     const block = bot.findNearest(blockName, maxDistance)
     if (!block) throw new Error(`Block not found: ${blockName} within ${maxDistance} blocks. Try coming closer or increasing maxDistance`)
 
-    // идём к блоку если далеко
+    // идём к блоку, если далеко; если не дошли — пробуем копать отсюда (вдруг уже в зоне досягаемости)
     const dist = bot.entity.position.distanceTo(block.position.offset(0.5, 0.5, 0.5))
     if (dist > 4.5) {
       try {
-        await bot.goto(block.position, { range: 3 })
-      } catch (e) {
-        // если не дошли — пробуем всё равно копать, может в зоне досягаемости
-        bot.chat(`Не могу дойти до ${blockName} (${(e as Error).message}), пробую копать отсюда...`)
-      }
+        await bot.goto(block.position, { range: 3, timeoutMs: options.timeoutMs })
+      } catch { /* попробуем докопать с текущей точки */ }
     }
 
     if (autoTool) {
       try { await bot.equipBest(block) } catch {}
     }
 
-    // проверяем можно ли копать
     if (!bot.canDigBlock(block)) {
-      // пробуем посмотреть на блок
       await bot.lookAt(block.position.offset(0.5, 0.5, 0.5))
       if (!bot.canDigBlock(block)) {
         throw new Error(`Cannot dig ${blockName} at ${block.position} — out of reach or undiggable`)
@@ -285,7 +296,7 @@ export function injectSimple(bot: MinevlayerBot) {
     const count = options.count ?? 1
     for (let i = 0; i < count; i++) {
       await breakOne(blockName, { ...options, count: undefined })
-      if (count > 1) await sleepMs(200) // чуть подождать между блоками
+      if (count > 1) await sleepMs(200) // пауза между блоками, чтобы сервер успевал
     }
   }
 
@@ -294,51 +305,43 @@ export function injectSimple(bot: MinevlayerBot) {
   }
 
   bot.collect = async (blockName: string, count = 1, options: CollectOptions = {}): Promise<void> => {
-    // если есть mineflayer-collectblock — используем его для умного сбора
-    const anyBot: any = bot
+    // если установлен mineflayer-collectblock — он сам дойдёт, сломает и подберёт дроп
     if (anyBot.collectBlock) {
-      const id = getBlockId(bot, blockName)
-      if (id !== null) {
-        const mcData = require('minecraft-data')(bot.version)
-        const block = mcData.blocksById[id]
-        // collectBlock api: bot.collectBlock.collect(block, { count })
+      const positions = findBlocksForName(bot, blockName, options.maxDistance ?? 64, count)
+      const blocks: Block[] = []
+      for (const p of positions) {
+        const b = bot.blockAt(p)
+        if (b) blocks.push(b)
+      }
+      if (blocks.length > 0) {
         try {
-          // пробуем современный API
-          if (anyBot.collectBlock.collect) {
-            await anyBot.collectBlock.collect(block, { count })
-            return
-          }
-        } catch {}
+          // collectBlock принимает настоящий Block или массив блоков
+          await anyBot.collectBlock.collect(blocks)
+          return
+        } catch { /* падаем в обычный режим */ }
       }
     }
-    // fallback — просто ломаем
     await bot.mine(blockName, count, options)
-    // подождать пока дроп подберётся
-    await sleepMs(500)
+    await sleepMs(500) // подождать, пока дроп подберётся
   }
 
   // ---------- PLACE ----------
-  bot.place = async (blockName: string, reference?: Block | Vec3, options: PlaceOptions = {}): Promise<void> => {
-    const autoEquip = options.autoEquip ?? true
-    if (autoEquip) {
+  bot.place = async (blockName: string, reference?: Block | Vec3 | { x: number, y: number, z: number }, options: PlaceOptions = {}): Promise<void> => {
+    if (options.autoEquip !== false) {
       try { await bot.equipBest(blockName) } catch {}
     }
 
-    // найти предмет в инвентаре
     const itemId = getItemId(bot, blockName)
     if (itemId === null) throw new Error(`Unknown block/item: ${blockName}`)
     const hasItem = bot.inventory.items().some(i => i.type === itemId)
     if (!hasItem) throw new Error(`No ${blockName} in inventory`)
 
     let refBlock: Block
-    let face = options.face ?? new Vec3(0, 1, 0)
-
     if (!reference) {
-      // ставим перед собой на землю
-      const pos = bot.entity.position.offset(0, -1, 0).floored()
-      const b = bot.blockAt(pos)
-      if (!b) throw new Error('No reference block found beneath feet')
-      refBlock = b
+      // ставим на блок под ногами
+      const under = bot.blockAt(bot.entity.position.offset(0, -1, 0).floored())
+      if (!under) throw new Error('No reference block found beneath feet')
+      refBlock = under
     } else if ((reference as Block).position) {
       refBlock = reference as Block
     } else {
@@ -348,21 +351,20 @@ export function injectSimple(bot: MinevlayerBot) {
       refBlock = b
     }
 
-    // если есть genericPlace — используем
-    try {
-      await bot.placeBlock(refBlock, face)
-    } catch (e) {
-      // пробуем соседние грани
-      const faces = [new Vec3(0, 1, 0), new Vec3(0, -1, 0), new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1)]
-      let lastErr = e
-      for (const f of faces) {
-        try {
-          await bot.placeBlock(refBlock, f)
-          return
-        } catch (err) { lastErr = err }
-      }
-      throw lastErr
+    const faces = [
+      options.face ?? new Vec3(0, 1, 0),
+      new Vec3(0, 1, 0), new Vec3(0, -1, 0),
+      new Vec3(1, 0, 0), new Vec3(-1, 0, 0),
+      new Vec3(0, 0, 1), new Vec3(0, 0, -1)
+    ]
+    let lastErr: unknown
+    for (const face of faces) {
+      try {
+        await bot.placeBlock(refBlock, face)
+        return
+      } catch (err) { lastErr = err }
     }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
   }
 
   // ---------- CHAT / UTILS ----------
@@ -387,16 +389,15 @@ export function injectSimple(bot: MinevlayerBot) {
   }
 
   bot.autoEat = () => {
-    // если есть mineflayer-auto-eat
-    const anyBot: any = bot
-    if (anyBot.autoEat) {
+    if (anyBot.autoEat && typeof anyBot.autoEat.enable === 'function') {
       anyBot.autoEat.enable()
       return
     }
-    // простой фолбэк
+    // простой фолбэк: едим, когда голод < 15
     bot.on('health', async () => {
       if (bot.food < 15) {
-        const food = bot.inventory.items().find(i => i.name.includes('bread') || i.name.includes('cooked') || i.name.includes('apple'))
+        const food = bot.inventory.items().find(i =>
+          i.name.includes('bread') || i.name.includes('cooked') || i.name.includes('apple'))
         if (food) {
           try { await bot.equip(food, 'hand'); await bot.consume() } catch {}
         }
@@ -406,33 +407,30 @@ export function injectSimple(bot: MinevlayerBot) {
 
   bot.guard = (position: Vec3 | { x: number, y: number, z: number }, radius = 15) => {
     const pos = toVec3(position)
-    const anyBot: any = bot
-    if (anyBot.pvp) {
-      // используем pvp плагин если есть
-      bot.on('physicsTick', () => {
-        const target = bot.nearestEntity(e => e.type === 'mob' && e.position.distanceTo(pos) < radius)
-        if (target) {
-          try { anyBot.pvp.attack(target) } catch {}
-        }
-      })
-      return
+    if (anyBot._guardHandler) bot.removeListener('physicsTick', anyBot._guardHandler)
+    const handler = () => {
+      const target = bot.nearestEntity(e => e.type === 'mob' && e.position.distanceTo(pos) < radius)
+      if (!target) return
+      if (anyBot.pvp) {
+        try {
+          const p = anyBot.pvp.attack(target)
+          if (p && typeof p.catch === 'function') p.catch(() => {})
+        } catch {}
+      } else {
+        bot.attack(target)
+      }
     }
-    // фолбэк: просто атакуем ближайшую сущность
-    bot.on('physicsTick', () => {
-      const target = bot.nearestEntity(e => e.type === 'mob' && bot.entity.position.distanceTo(e.position) < radius)
-      if (target) bot.attack(target)
-    })
+    anyBot._guardHandler = handler
+    bot.on('physicsTick', handler)
   }
 
   bot.craftSimple = async (itemName: string, count = 1, craftingTable?: Block | boolean) => {
     const itemId = getItemId(bot, itemName)
     if (itemId === null) throw new Error(`Unknown item: ${itemName}`)
     const recipes = bot.recipesFor(itemId, null, 1, craftingTable as any)
-    if (!recipes || recipes.length === 0) throw new Error(`No recipe for ${itemName}${craftingTable ? '' : ' (try near crafting table)'}`)
+    if (!recipes || recipes.length === 0) {
+      throw new Error(`No recipe available for ${itemName}${craftingTable ? '' : ' (try passing a crafting table)'}`)
+    }
     await bot.craft(recipes[0], count, craftingTable as any)
-  }
-
-  bot.build = async (_structure: string, _options?: any) => {
-    throw new Error('bot.build() not yet implemented — coming soon! Use bot.place() for now')
   }
 }
