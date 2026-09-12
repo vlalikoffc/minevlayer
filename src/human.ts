@@ -71,6 +71,10 @@ export function injectHuman(bot: any): void {
 
       const act = () => {
         if (!bot.entity) return schedule()
+        // если бот занят делом (идёт, дерётся, крадётся) — не мешаем ему:
+        // живой человек тоже не дёргает головой, когда зажимает WASD
+        const cs = bot.controlState
+        if (cs && Object.keys(cs).some(k => cs[k])) return schedule()
 
         const roll = Math.random()
         const yaw = bot.entity.yaw ?? 0

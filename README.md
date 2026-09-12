@@ -236,6 +236,33 @@ detection. Some server setups fingerprint clients beyond physics (telemetry,
 custom handshake plugins) — that's outside any protocol wrapper. The primary
 target is offline play and your own servers.
 
+### Vendored mineflayer audit (what we checked under the hood)
+
+Without touching the engine, we audited what a vanilla client does versus the
+vendored mineflayer 4.39.0:
+
+| Packet / behavior | Vanilla client | Vendored mineflayer | Verdict |
+|---|---|---|---|
+| Client brand | `vanilla` | sends `vanilla` by default (`lib/loader.js`) | ✅ identical |
+| Client settings (skin parts, view distance, chat, main hand) | full skin, far view, right hand | same defaults (`lib/plugins/settings.js`) | ✅ identical |
+| Movement tick rate | 20 TPS (50 ms) | fixed 50 ms physics interval (`lib/plugins/physics.js`) | ✅ identical |
+| Movement packets | one movement packet per tick, `flying` when idle | same, incl. modern "send every tick" versions | ✅ identical |
+| onGround / gravity / knockback velocity | physics engine | prismarine-physics, same math the server expects | ✅ identical |
+| Standing perfectly still with a frozen camera | never happens | happened → fixed by `bot.human.idle()` | ✅ fixed by wrapper |
+| Idle fidgets while busy walking | never happens | fixed: idle skips actions while controls are pressed | ✅ fixed by wrapper |
+
+Everything is switched on for every bot automatically and can be turned off:
+
+```js
+createBot({ host, username }) // legit layer ON by default
+createBot({ host, username, legit: false }) // disable everything
+createBot({ host, username, legitIdle: false }) // disable only the alive idle
+```
+
+The layer is per-bot: run ten minevlayer bots and a raw mineflayer bot in the
+same process — each keeps its own settings, tasks, brain and timers; nothing is
+global.
+
 How the smarts work:
 
 - **Tool gating.** `bot.dig('diamond_ore')` refuses to dig if you don't have a tool that actually yields drops (diamond ore = iron pickaxe or better — gold doesn't count, checked from game data for any version). The error tells you exactly what's needed and what you have. Force it with `{ force: true }` if you know better.

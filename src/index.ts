@@ -39,13 +39,40 @@ export type { BrainState, EntityInfo, BrainEvents } from './brain'
 
 const log = (...args: unknown[]): void => console.log('[minevlayer]', ...args)
 
+export interface LegitOptions {
+  /** Мастер-флаг «вести себя как настоящий клиент». @default true */
+  legit?: boolean
+  /** Живой простой: микро-движения головы/тела когда бот ничего не делает. @default true */
+  legitIdle?: boolean
+}
+
+/**
+ * Чистая функция (тестируется без подключения): применяет легит-дефолты к опциям.
+ * Каждый бот получает свои настройки — глобального состояния нет, поэтому
+ * несколько ботов в одном процессе (хоть через minevlayer, хоть через чистый
+ * mineflayer параллельно) друг друга не трогают.
+ */
+export function applyLegitOptions(options: Partial<BotOptions> & LegitOptions & { autoPathfinder?: boolean } = {}): any {
+  const legit = options.legit ?? true
+  const out: any = { ...options, legit }
+  if (legit) {
+    // бренд клиента: как у ванильного клиента, если пользователь не задал свой
+    if (out.brand === undefined) out.brand = 'vanilla'
+  }
+  out.legitIdle = legit && (options.legitIdle ?? true)
+  return out
+}
+
 /**
  * Создать бота. Внутри — обычный mineflayer-бот + простые методы.
  *
  * Дополнительные опции:
  *  - `autoPathfinder: false` — не грузить mineflayer-pathfinder автоматически.
+ *  - `legit: false` — выключить слой «как настоящий клиент» (по умолчанию ВКЛ).
+ *  - `legitIdle: false` — выключить живой простой (по умолчанию ВКЛ вместе с legit).
  */
-export function createBot(options: Partial<BotOptions> & { autoPathfinder?: boolean } = {}): MinevlayerBot {
+export function createBot(userOptions: Partial<BotOptions> & LegitOptions & { autoPathfinder?: boolean } = {}): MinevlayerBot {
+  const options = applyLegitOptions(userOptions)
   const autoPathfinder = options.autoPathfinder ?? true
 
   const bot = mineflayer.createBot(options) as MinevlayerBot
@@ -71,9 +98,17 @@ export function createBot(options: Partial<BotOptions> & { autoPathfinder?: bool
   // диспетчер задач: мозг решает, что делать сейчас (приоритеты)
   bot.tasks = new TaskManager(bot)
 
-  // физика: получив откидывание, бот не сопротивляется ему 350 мс —
-  // так делает живой игрок, а античитам не за что кикать
+  // физика: обёртка НЕ мешает физике — откаты и падение проигрывает движок,
+  // бот ведёт себя как игрок, не отпустивший клавиши (см. physics.ts)
   wireKnockback(bot)
+
+  // слой «как настоящий клиент»: по умолчанию включён для каждого бота,
+  // работает только с ЭТИМ ботом (параллельные боты не задевает)
+  if (options.legitIdle) {
+    bot.once('spawn', () => {
+      if (!bot.human.status().idleActive) bot.human.idle()
+    })
+  }
 
   // подхватываем опциональные плагины, если они установлены (безопасный no-op, если нет)
   bot.once('inject_allowed', () => {

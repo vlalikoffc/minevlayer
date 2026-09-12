@@ -31,6 +31,7 @@ function createMockBot (opts = {}) {
     setControlState: [],
     clearControlStates: 0,
     lookAt: [],
+    look: [],
     attack: []
   }
 
@@ -87,8 +88,9 @@ function createMockBot (opts = {}) {
   bot.nearestEntity = opts.nearestEntity || (() => undefined)
 
   // движение
+  bot.controlState = opts.controlState || {}
   bot.lookAt = async (pos) => { calls.lookAt.push(pos) }
-  bot.look = async (pitch, yaw) => { calls.look = calls.look || []; calls.look.push([pitch, yaw]) }
+  bot.look = async (pitch, yaw) => { calls.look.push([pitch, yaw]) }
   bot.setControlState = (k, v) => { calls.setControlState.push([k, v]) }
   bot.clearControlStates = () => { calls.clearControlStates++ }
 
