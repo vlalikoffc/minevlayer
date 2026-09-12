@@ -1,4 +1,4 @@
-import { kbRemaining } from './physics'
+import { sinceKnockback } from './physics'
 
 /**
  * «Человечность»: всё, что делает бота физически неотличимым от игрока
@@ -8,7 +8,8 @@ import { kbRemaining } from './physics'
  *  - движение считается ТОЛЬКО ванильным физическим движком (prismarine-physics):
  *    гравитация, падение, откидывание — как у настоящего клиента;
  *  - бот НИКОГДА не телепортируется и не подменяет координаты;
- *  - в откате (после урона) управление отпущено (см. physics.ts);
+ *  - откат от удара проигрывает физика, а бот продолжает держать свои клавиши,
+ *    как игрок, который не отпустил W (см. physics.ts) — никаких «замираний»;
  *  - в простое бот ведёт себя как человек: дрейф головы, осмотр, присед, прыжок —
  *    а не стоит как статуя с идеально статичной камерой.
  *
@@ -54,7 +55,7 @@ export function injectHuman(bot: any): void {
         physicsEnabled: bot.physicsEnabled !== false,
         onGround: !!bot.entity?.onGround,
         airborneMs: this._airborneSince ? Date.now() - this._airborneSince : 0,
-        sinceKnockbackMs: kbRemaining(bot),
+        sinceKnockbackMs: sinceKnockback(bot),
         idleActive: this._idleTimer !== null
       }
     },
@@ -70,7 +71,6 @@ export function injectHuman(bot: any): void {
 
       const act = () => {
         if (!bot.entity) return schedule()
-        if (kbRemaining(bot) > 0) return schedule() // в откате не дёргаемся
 
         const roll = Math.random()
         const yaw = bot.entity.yaw ?? 0

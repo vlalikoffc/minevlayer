@@ -166,8 +166,8 @@ export function injectSimple(bot: MinevlayerBot) {
       }
 
       const walkTimer = setInterval(() => {
-        // в откате (после урона/откидывания) не жмём кнопки — физика сама разберётся
-        if ((anyBot._kbUntil ?? 0) > Date.now()) return
+        // в откате после удара НЕ замираем: игрок держит клавиши, физика тащит
+        // его сама, а мы продолжаем идти к цели как только откат затухнет
         const dist = bot.entity.position.distanceTo(pos)
         if (dist <= range) {
           cleanup()

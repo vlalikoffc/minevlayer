@@ -36,7 +36,6 @@ const DEFAULT_PRIORITIES = { defend: 90, attack: 80, mine: 50, gather: 40 }
 
 /** Одиночный «человеческий» удар для задач (с кулдауном и прицелом). */
 async function swingOnce(bot: any, entity: any): Promise<boolean> {
-  if ((bot._kbUntil ?? 0) > Date.now()) return false
   const dist = bot.entity?.position?.distanceTo(entity.position) ?? 999
   if (dist > 3) return false // ванильная дальность
   try { await bot.lookAt(entity.position.offset(0, 1, 0)) } catch {}

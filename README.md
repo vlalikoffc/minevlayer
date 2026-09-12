@@ -175,8 +175,7 @@ Classic mineflayer bots get kicked because they ignore physics: knocked back but
 still pushing "forward", standing in mid-air, impossible packets. minevlayer
 plays it straight:
 
-- got hit/knockback → the bot releases all controls for ~350 ms and lets the physics engine play the knock out, exactly like a human would;
-- combat and walking pause their inputs during that window;
+- got knocked back → the bot does NOT freeze and does NOT let go of its keys: a real player keeps holding W through the knock, and so does the bot — the physics engine integrates the knock velocity, and the bot re-engages the moment it decays (freezing is what makes classic bots easy to combo and looks nothing like a player);
 - no teleports, no impossible speeds — only vanilla physics and vanilla reach.
 
 ## Tasks — the brain decides what to do now
@@ -219,7 +218,7 @@ client. What minevlayer guarantees:
 | Concern | Guarantee |
 |---|---|
 | Falling / gravity | vanilla physics engine (prismarine-physics) runs every tick; the bot falls when it should and lands where it should — captcha-style "fall onto the block" checks pass on their own |
-| Knockback | on damage the bot releases all inputs for ~350 ms and rides the knock — no "pushed but still walking forward" flags |
+| Knockback | the bot keeps its inputs like a player who never let go of W; the physics engine plays the knock velocity, the bot re-engages instantly after — no freezing, no fighting the physics |
 | Air stuck | watchdog: if the bot hangs airborne impossibly long, `physics_anomaly` is emitted so you see the problem |
 | Teleports / impossible speed | never — coordinates are only produced by the physics engine |
 | Reach, cooldowns, crits | strictly vanilla rules (see PvP) |

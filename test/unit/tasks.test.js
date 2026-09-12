@@ -5,7 +5,7 @@ const assert = require('assert')
 const path = require('path')
 const { Vec3 } = require('vec3')
 const { TaskManager } = require('../../dist/tasks')
-const { wireKnockback, KB_WINDOW_MS } = require('../../dist/physics')
+const { wireKnockback, sinceKnockback } = require('../../dist/physics')
 const { createMockBot } = require('../mocks/bot')
 
 function taskBot (opts = {}) {
@@ -136,19 +136,22 @@ describe('tasks: standard set', () => {
 })
 
 describe('physics: knockback compliance', () => {
-  it('on hurt the bot releases controls and pauses inputs', () => {
+  it('on hurt the bot records knockback and KEEPS its inputs (like a real player)', () => {
     const bot = createMockBot()
     wireKnockback(bot)
+    bot.setControlState('forward', true) // игрок шёл и зажимал W
+    const clearsBefore = bot._calls.clearControlStates
     bot.emit('entityHurt', bot.entity)
-    assert.ok(bot._kbUntil > Date.now(), 'kb window must be set')
-    assert.ok(bot._kbUntil <= Date.now() + KB_WINDOW_MS)
-    assert.ok(bot._calls.clearControlStates >= 1, 'controls released on knockback')
+    assert.ok(bot._lastKnockback > 0, 'knockback moment recorded')
+    assert.strictEqual(bot._calls.clearControlStates, clearsBefore,
+      'inputs must NOT be released — the player keeps holding their keys')
+    assert.strictEqual(sinceKnockback(bot) < 100, true)
   })
 
   it('ignores other entities getting hurt', () => {
     const bot = createMockBot()
     wireKnockback(bot)
     bot.emit('entityHurt', { id: 99 })
-    assert.strictEqual(bot._kbUntil, undefined)
+    assert.strictEqual(bot._lastKnockback, undefined)
   })
 })
