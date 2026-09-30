@@ -1,0 +1,62 @@
+name: Playtest
+
+# 6 bots join a vanilla survival server the job prepares itself (EULA accepted
+# by script, no op, no cheats), give themselves tasks through the minevlayer
+# wrapper, verify every task against the world and play for 15 minutes.
+# One failed check on one bot = red CI.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: playtest-${{ github.ref_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  playtest:
+    name: 6 bots play survival
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          java-package: jre
+
+      - name: Cache server jar
+        uses: actions/cache@v4
+        with:
+          path: server_jars
+          key: server-jar-${{ hashFiles('vendor/mineflayer/lib/version.js') }}
+
+      - name: Install & build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Bots play and grade themselves
+        env:
+          PLAYTEST_BOTS: '6'
+          PLAYTEST_JOIN_DELAY: '5000'
+          PLAYTEST_DURATION: '900000'
+          PLAYTEST_SERVER_LOG: '1'
+        run: node test/playtest/index.js
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest-report
+          path: playtest-report.json
+          retention-days: 14
